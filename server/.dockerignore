@@ -1,0 +1,55 @@
+# Dépendances Node.js
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Fichiers de cache
+.npm
+.eslintcache
+*.tgz
+
+# Fichiers d'environnement local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs
+*.log
+
+# Fichiers de couverture
+coverage/
+.nyc_output
+
+# Fichiers temporaires
+.tmp
+*.tmp
+*.temp
+
+# Fichiers de l'éditeur
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+
+# Fichiers Git
+.git
+.gitignore
+README.md
+
+# Fichiers Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Fichiers de développement
+*.md
+.editorconfig
+.prettierrc*

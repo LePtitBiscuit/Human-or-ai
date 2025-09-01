@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  app:
+    build: .
+    container_name: humanvsai-server
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - CHOKIDAR_USEPOLLING=1
+      - NODE_ENV=development
+      - PORT=3000
+      - CORS_ORIGIN=http://localhost:5173
+      - JWT_SECRET=votre_cle_secrete_ultra_securisee_pour_jwt_auth_97232
+      - JWT_EXPIRES_IN=24h
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run dev

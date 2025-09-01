@@ -1,0 +1,20 @@
+@import 'tailwindcss';
+
+/* Reset CSS de base compatible avec Tailwind */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Reset spécifique pour éviter les conflits avec Tailwind */
+body {
+  margin: 0;
+  line-height: inherit;
+}
+
+/* Assurer que Tailwind peut override les styles */
+html {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  line-height: 1.5;
+}
