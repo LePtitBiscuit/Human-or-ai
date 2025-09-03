@@ -723,6 +723,98 @@ module.exports = (io, gameManagerInstance = null) => {
       }
     });
 
+    // Événement pour toggle l'affichage du QR code sur les écrans de présentation
+    socket.on("toggle_qr_code", (data) => {
+      try {
+        // Vérifier si c'est une demande du control center
+        if (!socket.isControlCenter) {
+          socket.emit("control_center_error", {
+            success: false,
+            error: "Non autorisé",
+            message: "Seuls les control centers peuvent toggle l'affichage du QR code",
+          });
+          return;
+        }
+
+        const { gameId } = data;
+
+        // Validation des données
+        if (!gameId) {
+          socket.emit("control_center_error", {
+            success: false,
+            error: "Données manquantes",
+            message: "gameId est requis",
+          });
+          return;
+        }
+
+        console.log(`📱 Toggle du QR code demandé pour la partie ${gameId}`);
+
+        // Construire l'URL pour rejoindre la partie
+        const baseUrl = process.env.FRONTEND_URL || "https://human-or-ai.vizyondijital.fr";
+        const qrCodeUrl = `${baseUrl}/remote-devices/${gameId}`;
+
+        // Trouver tous les devices de type "presentation" connectés à cette partie
+        const game = games.find((g) => g.id === parseInt(gameId));
+        if (!game) {
+          socket.emit("control_center_error", {
+            success: false,
+            error: "Partie introuvable",
+            message: `Aucune partie avec l'ID ${gameId} n'a été trouvée`,
+          });
+          return;
+        }
+
+        // Filtrer les devices de présentation dans cette partie
+        const presentationDevices = game.devices.filter((device) => device.type === "presentation");
+
+        if (presentationDevices.length === 0) {
+          socket.emit("control_center_error", {
+            success: false,
+            error: "Aucun écran de présentation",
+            message: `Aucun écran de présentation connecté à la partie ${gameId}`,
+          });
+          return;
+        }
+
+        console.log(`📺 Envoi du toggle QR code à ${presentationDevices.length} écran(s) de présentation`);
+
+        // Émettre l'événement toggle_qr_code à tous les devices de présentation de cette partie
+        presentationDevices.forEach((device) => {
+          const deviceSocket = io.sockets.sockets.get(device.socketId);
+          if (deviceSocket) {
+            deviceSocket.emit("toggle_qr_code", {
+              gameId: parseInt(gameId),
+              qrCodeUrl: qrCodeUrl,
+              timestamp: new Date().toISOString(),
+            });
+            console.log(`📱 QR code toggle envoyé au device de présentation: ${device.name} (${device.socketId})`);
+          }
+        });
+
+        // Confirmer le succès au control center
+        socket.emit("qr_code_toggle_success", {
+          success: true,
+          message: `QR code toggle envoyé à ${presentationDevices.length} écran(s) de présentation`,
+          gameId: parseInt(gameId),
+          qrCodeUrl: qrCodeUrl,
+          devicesNotified: presentationDevices.length,
+          timestamp: new Date().toISOString(),
+        });
+
+        console.log(
+          `✅ QR code toggle réussi pour la partie ${gameId} - ${presentationDevices.length} écran(s) notifié(s)`
+        );
+      } catch (error) {
+        console.error("Erreur lors du toggle du QR code:", error);
+        socket.emit("control_center_error", {
+          success: false,
+          error: "Erreur serveur",
+          message: error.message,
+        });
+      }
+    });
+
     // Événements personnalisés pour le jeu (à étendre selon les besoins)
     socket.on("game_event", (data) => {
       if (socket.gameId) {
