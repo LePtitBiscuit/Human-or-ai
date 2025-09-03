@@ -5,7 +5,8 @@
 class Game {
   constructor() {
     this.id = null;
-    this.rounds = [];
+    this.rounds = 0;
+    this.currentRound = 0;
     this.devices = [];
     this.score = [];
     this.status = null;
@@ -13,6 +14,23 @@ class Game {
     this.currentQuestion = null;
     this.displayedResponse = null;
     this.roundResults = {};
+    this.gameMode = null;
+    this.players = [];
+    // Données de fin de partie
+    this.gameEnded = false;
+    this.finalScore = null;
+    this.finalRoundNumber = null;
+    this.finalRoundResults = null;
+    this.gameResult = null; // 'won' ou 'lost'
+  }
+}
+
+class Player {
+  constructor() {
+    this.name = null;
+    this.socketId = null;
+    this.game = null;
+    this.score = [];
   }
 }
 
@@ -33,4 +51,4 @@ const games = [];
 // Liste pour stocker tous les devices
 const devices = [];
 
-module.exports = { Game, Device, games, devices };
+module.exports = { Game, Device, games, devices, Player };

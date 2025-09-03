@@ -29,6 +29,7 @@ class RoundManager {
    */
   async startRound() {
     try {
+      this.game.currentRound++;
       console.log(`🔄 Démarrage du round ${this.currentRound.number} pour la partie ${this.game.id}`);
 
       // Phase 1: Génération de la question
@@ -54,6 +55,7 @@ class RoundManager {
     try {
       // Générer la question avec Gemini
       const question = await generateQuestion();
+      // const question = "Ceci est une question Ceci est une question Ceci est une question";
       this.currentRound.question = question;
       this.game.currentQuestion = question;
 
@@ -119,6 +121,7 @@ class RoundManager {
     try {
       // Générer la réponse IA avec Gemini
       const aiResponse = await generateAnswer(this.currentRound.question, this.currentRound.humanResponse);
+      // const aiResponse = "testicule";
 
       this.currentRound.aiResponse = aiResponse;
       this.game.ai_response = aiResponse; // Stocker dans l'objet game
@@ -195,7 +198,7 @@ class RoundManager {
       return;
     }
 
-    console.log(`🗳️ Vote reçu: "${selection}" de ${deviceInfo.name}`);
+    console.log(`🗳️ Vote reçu: "${selection}" de ${deviceInfo.name} (mode: ${this.game.gameMode})`);
 
     // Enregistrer le vote
     this.currentRound.votes.set(deviceInfo.socketId, {
@@ -204,31 +207,71 @@ class RoundManager {
       timestamp: Date.now(),
     });
 
-    // Notifier tous les devices qu'un vote a été reçu (jeu solo)
-    this.io.to(this.roomName).emit("vote_received", {
+    // Notifier uniquement le joueur qui a voté
+    this.io.to(deviceInfo.socketId).emit("vote_received", {
       voterDevice: deviceInfo.name,
       selection: selection,
       gameId: this.game.id,
     });
 
-    // En mode solo, un seul vote suffit (peut venir de n'importe quel device)
-    // On conclut dès le premier vote reçu
-    if (this.currentRound.votes.size >= 1) {
-      await this.concludeRound();
+    // Gestion différente selon le mode de jeu
+    if (this.game.gameMode === "solo") {
+      // En mode solo, un seul vote suffit (peut venir de n'importe quel device)
+      // On conclut dès le premier vote reçu
+      if (this.currentRound.votes.size >= 1) {
+        await this.concludeRound();
+      }
+    } else if (this.game.gameMode === "multi") {
+      // En mode multijoueurs, on attend que tous les joueurs connectés aient voté
+      const connectedPlayers = this.game.players.filter((player) => player.socketId !== null);
+      console.log(`👥 Joueurs connectés: ${connectedPlayers.length}, Votes reçus: ${this.currentRound.votes.size}`);
+
+      if (this.currentRound.votes.size >= connectedPlayers.length) {
+        await this.concludeRound();
+      } else {
+        // Mettre à jour le score du joueur qui a voté
+        const player = this.game.players.find((p) => p.socketId === deviceInfo.socketId);
+        if (player) {
+          // Initialiser le score si nécessaire
+          if (!player.score) {
+            player.score = Array(this.game.rounds).fill(null);
+          }
+          // Marquer que le joueur a voté (on ne stocke pas encore le résultat, juste qu'il a voté)
+          player.score[this.currentRound.number - 1] = "voted";
+        }
+
+        // Envoyer uniquement aux devices de type "presentation"
+        const gameId = this.game.id;
+        this.gameStateManager.emitToDevicesByType(
+          this.game.devices,
+          "game_advancement_update",
+          {
+            gameId: gameId,
+            advancement: "waiting_for_player_selection",
+            game: this.game,
+            timestamp: new Date().toISOString(),
+          },
+          ["presentation"]
+        );
+      }
     }
   }
 
   /**
-   * Conclut le round actuel et affiche les résultats (solo)
+   * Conclut le round actuel et affiche les résultats
    */
   async concludeRound() {
-    console.log(`🏁 Conclusion du round ${this.currentRound.number}`);
+    console.log(`🏁 Conclusion du round ${this.currentRound.number} (mode: ${this.game.gameMode})`);
 
-    // Calculer le résultat du round
+    // Calculer le résultat du round selon le mode
     const results = this.calculateResults();
 
-    // Ajouter le booléen au score
-    this.updateGameScore(results.isCorrect);
+    // Mettre à jour les scores selon le mode
+    if (this.game.gameMode === "solo") {
+      this.updateGameScore(results.isCorrect);
+    } else if (this.game.gameMode === "multi") {
+      this.updatePlayersScores(results);
+    }
 
     const round_results = {
       roundNumber: this.currentRound.number,
@@ -240,22 +283,118 @@ class RoundManager {
       playerSelection: results.playerSelection,
       isCorrect: results.isCorrect,
       gameId: this.game.id,
+      gameMode: this.game.gameMode,
     };
 
+    // En mode multijoueurs, ajouter les résultats individuels des joueurs
+    if (this.game.gameMode === "multi") {
+      round_results.playerResults = results.playerResults;
+    }
+
     this.game.roundResults = round_results;
+    console.log("this.game.roundResults", this.game.roundResults);
 
     this.gameStateManager.updateGameAdvancement(this.roomName, "round_ended");
 
-    // Envoyer le score de la partie (liste de booléens)
-    this.io.to(this.roomName).emit("game_score_update", {
+    // Envoyer l'événement round_ended au control center
+    console.log(`📤 Envoi de l'événement round_ended au control center pour la partie ${this.game.id}`);
+    console.log(`🔍 Données envoyées:`, {
       gameId: this.game.id,
-      totalRounds: this.currentRound.number,
-      score: this.game.score, // Liste de booléens [true, false, true, ...]
-      currentRoundResult: results.isCorrect,
+      roundNumber: this.currentRound.number,
+      hasRoundResults: !!round_results,
+      hasScore: !!this.game.score,
     });
 
-    console.log(`📊 Résultat du round ${this.currentRound.number}: ${results.isCorrect ? "CORRECT" : "INCORRECT"}`);
-    console.log(`🎯 Score de la partie: [${this.game.score.join(", ")}]`);
+    this.io.to("control_center").emit("round_ended", {
+      gameId: this.game.id,
+      roundNumber: this.currentRound.number,
+      roundResults: round_results,
+      score: this.game.score,
+      timestamp: new Date().toISOString(),
+    });
+
+    console.log(`✅ Événement round_ended envoyé avec succès à la room control_center`);
+
+    // Vérifier si c'est la dernière manche
+    if (this.currentRound.number === this.game.rounds) {
+      console.log(
+        `🏁 Dernière manche terminée pour la partie ${this.game.id} (${this.currentRound.number}/${this.game.rounds})`
+      );
+
+      // Stocker les données de fin de partie dans l'objet Game
+      this.game.gameEnded = true;
+      this.game.finalScore = this.game.score;
+      this.game.finalRoundNumber = this.currentRound.number;
+      this.game.finalRoundResults = round_results;
+
+      // Calculer le résultat de la partie
+      const correctAnswers = this.game.score.filter((score) => score === true).length;
+      const totalRounds = this.currentRound.number;
+      const halfRounds = Math.ceil(totalRounds / 2);
+      this.game.gameResult = correctAnswers >= halfRounds ? "won" : "lost";
+
+      console.log(`🏆 Données de fin de partie stockées dans Game ${this.game.id}:`, {
+        gameEnded: this.game.gameEnded,
+        finalScore: this.game.finalScore,
+        finalRoundNumber: this.game.finalRoundNumber,
+        gameResult: this.game.gameResult,
+        correctAnswers,
+        totalRounds,
+        halfRounds,
+      });
+
+      // Envoyer l'événement game_ended au control center immédiatement
+      this.io.to("control_center").emit("game_ended", {
+        game: this.game,
+        timestamp: new Date().toISOString(),
+      });
+      console.log(`📤 Événement game_ended envoyé au control center pour la partie ${this.game.id}`);
+
+      // Envoyer l'événement game_ended aux devices de la partie après 5 secondes
+      setTimeout(() => {
+        this.gameStateManager.updateGameAdvancement(this.roomName, "game_ended");
+
+        // Envoyer l'événement game_ended aux devices connectés à la partie
+        this.io.to(this.roomName).emit("game_ended", {
+          game: this.game,
+          timestamp: new Date().toISOString(),
+        });
+
+        console.log(`✅ Événement game_ended envoyé aux devices de la partie ${this.game.id}`);
+      }, 5000);
+    }
+
+    // Envoyer le score de la partie selon le mode
+    if (this.game.gameMode === "solo") {
+      // En mode solo, envoyer le score global
+      this.io.to(this.roomName).emit("game_score_update", {
+        gameId: this.game.id,
+        totalRounds: this.currentRound.number,
+        score: this.game.score, // Liste de booléens [true, false, true, ...]
+        currentRoundResult: results.isCorrect,
+        gameMode: this.game.gameMode,
+      });
+    } else if (this.game.gameMode === "multi") {
+      // En mode multijoueurs, envoyer uniquement les scores des joueurs
+      this.io.to(this.roomName).emit("game_score_update", {
+        gameId: this.game.id,
+        totalRounds: this.currentRound.number,
+        gameMode: this.game.gameMode,
+        playerScores: this.game.players.map((player) => ({
+          name: player.name,
+          socketId: player.socketId,
+          score: player.score,
+        })),
+        playerResults: results.playerResults,
+      });
+    }
+
+    if (this.game.gameMode === "solo") {
+      console.log(`📊 Résultat du round ${this.currentRound.number}: ${results.isCorrect ? "CORRECT" : "INCORRECT"}`);
+      console.log(`🎯 Score de la partie: [${this.game.score.join(", ")}]`);
+    } else if (this.game.gameMode === "multi") {
+      console.log(`📊 Round ${this.currentRound.number} terminé - Scores individuels des joueurs mis à jour`);
+    }
 
     // Marquer le round comme terminé et attendre l'événement "next_round"
     this.currentRound.status = "completed";
@@ -263,24 +402,49 @@ class RoundManager {
   }
 
   /**
-   * Calcule le résultat du round (solo)
+   * Calcule le résultat du round selon le mode de jeu
    */
   calculateResults() {
     const correctAnswer = this.currentRound.isDisplayedResponseFromAI ? "ai" : "human";
 
-    // En mode solo, on prend le premier (et seul) vote
-    const firstVote = this.currentRound.votes.values().next().value;
-    const isCorrect = firstVote.selection === correctAnswer;
+    if (this.game.gameMode === "solo") {
+      // En mode solo, on prend le premier (et seul) vote
+      const firstVote = this.currentRound.votes.values().next().value;
+      const isCorrect = firstVote.selection === correctAnswer;
 
-    return {
-      isCorrect: isCorrect,
-      playerSelection: firstVote.selection,
-      correctAnswer: correctAnswer,
-    };
+      return {
+        isCorrect: isCorrect,
+        playerSelection: firstVote.selection,
+        correctAnswer: correctAnswer,
+      };
+    } else if (this.game.gameMode === "multi") {
+      // En mode multijoueurs, calculer les résultats pour chaque joueur
+      const playerResults = [];
+
+      for (const [socketId, vote] of this.currentRound.votes) {
+        const player = this.game.players.find((p) => p.socketId === socketId);
+        if (player) {
+          const isCorrect = vote.selection === correctAnswer;
+          playerResults.push({
+            playerName: player.name,
+            socketId: socketId,
+            selection: vote.selection,
+            isCorrect: isCorrect,
+          });
+        }
+      }
+
+      return {
+        isCorrect: null, // Pas de résultat global en multijoueurs
+        playerSelection: null, // Pas de sélection unique en multijoueurs
+        correctAnswer: correctAnswer,
+        playerResults: playerResults,
+      };
+    }
   }
 
   /**
-   * Met à jour le score de la partie
+   * Met à jour le score de la partie (mode solo)
    */
   updateGameScore(isCorrect) {
     // Initialiser le score si nécessaire
@@ -289,7 +453,30 @@ class RoundManager {
     }
 
     // Ajouter simplement le booléen au score
-    this.game.score.push(isCorrect);
+    this.game.score[this.currentRound.number - 1] = isCorrect;
+  }
+
+  /**
+   * Met à jour les scores des joueurs (mode multijoueurs)
+   */
+  updatePlayersScores(results) {
+    console.log(`📊 Mise à jour des scores des joueurs pour le round ${this.currentRound.number}`);
+
+    // Mettre à jour le score de chaque joueur
+    for (const playerResult of results.playerResults) {
+      const player = this.game.players.find((p) => p.socketId === playerResult.socketId);
+      if (player) {
+        // Initialiser le score si nécessaire
+        if (!player.score) {
+          player.score = Array(this.game.rounds).fill(null);
+        }
+
+        // Mettre à jour le score pour ce round
+        player.score[this.currentRound.number - 1] = playerResult.isCorrect;
+
+        console.log(`👤 ${player.name}: ${playerResult.isCorrect ? "✅" : "❌"} (Round ${this.currentRound.number})`);
+      }
+    }
   }
 
   /**
@@ -311,6 +498,65 @@ class RoundManager {
    */
   async prepareNextRound() {
     console.log(`🚀 Préparation du round ${this.currentRound.number + 1}`);
+
+    // Vérifier si on est déjà au dernier round
+    if (this.currentRound.number >= this.game.rounds) {
+      console.log(`🏁 Partie terminée - Round ${this.currentRound.number} est le dernier round (${this.game.rounds})`);
+
+      // Si on est en mode multijoueurs et que le round actuel n'est pas terminé,
+      // conclure le round actuel en marquant les joueurs non-répondants comme "false"
+      if (this.game.gameMode === "multi" && this.currentRound.status === "waiting_for_player_selection") {
+        console.log(`⚠️ Round ${this.currentRound.number} forcé à la conclusion - marquage des joueurs non-répondants`);
+
+        // Marquer les joueurs qui n'ont pas voté comme "false"
+        const connectedPlayers = this.game.players.filter((player) => player.socketId !== null);
+        const playersWhoVoted = Array.from(this.currentRound.votes.keys());
+
+        for (const player of connectedPlayers) {
+          if (!playersWhoVoted.includes(player.socketId)) {
+            // Initialiser le score si nécessaire
+            if (!player.score) {
+              player.score = Array(this.game.rounds).fill(null);
+            }
+            // Marquer le joueur comme n'ayant pas répondu (false)
+            player.score[this.currentRound.number - 1] = false;
+            console.log(`❌ Joueur ${player.name} marqué comme non-répondant (false)`);
+          }
+        }
+
+        // Conclure le round actuel
+        await this.concludeRound();
+      }
+
+      // Terminer la partie en concluant le round actuel
+      await this.concludeRound();
+      return;
+    }
+
+    // Si on est en mode multijoueurs et que le round actuel n'est pas terminé,
+    // conclure le round actuel en marquant les joueurs non-répondants comme "false"
+    if (this.game.gameMode === "multi" && this.currentRound.status === "waiting_for_player_selection") {
+      console.log(`⚠️ Round ${this.currentRound.number} forcé à la conclusion - marquage des joueurs non-répondants`);
+
+      // Marquer les joueurs qui n'ont pas voté comme "false"
+      const connectedPlayers = this.game.players.filter((player) => player.socketId !== null);
+      const playersWhoVoted = Array.from(this.currentRound.votes.keys());
+
+      for (const player of connectedPlayers) {
+        if (!playersWhoVoted.includes(player.socketId)) {
+          // Initialiser le score si nécessaire
+          if (!player.score) {
+            player.score = Array(this.game.rounds).fill(null);
+          }
+          // Marquer le joueur comme n'ayant pas répondu (false)
+          player.score[this.currentRound.number - 1] = false;
+          console.log(`❌ Joueur ${player.name} marqué comme non-répondant (false)`);
+        }
+      }
+
+      // Conclure le round actuel
+      await this.concludeRound();
+    }
 
     // Réinitialiser pour le nouveau round
     this.currentRound.number++;

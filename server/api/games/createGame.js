@@ -14,7 +14,8 @@ const setSocketIO = (socketIOInstance) => {
  */
 const createGame = (req, res) => {
   try {
-    const { nombreManches, devicesData } = req.body;
+    const { nombreManches, devicesData, gameMode } = req.body;
+    console.log(req.body);
 
     // Validation des données reçues
     if (!nombreManches || !devicesData || !Array.isArray(devicesData)) {
@@ -32,9 +33,11 @@ const createGame = (req, res) => {
     const newGame = new Game();
     newGame.id = gameId;
     newGame.status = "waiting";
+    newGame.gameMode = gameMode || "solo";
 
     // Initialiser les rounds basés sur le nombre de manches
-    newGame.rounds = Array(nombreManches).fill(null);
+    newGame.rounds = nombreManches;
+    newGame.score = Array(nombreManches).fill(null);
 
     // Traiter les devices reçus
     const gameDevices = [];
@@ -97,6 +100,7 @@ const createGame = (req, res) => {
             deviceSocket.emit("game_advancement_update", {
               gameId: gameId,
               advancement: newGame.advancement,
+              game: newGame,
               timestamp: new Date().toISOString(),
             });
 

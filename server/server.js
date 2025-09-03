@@ -47,7 +47,7 @@ app.get("/health", (req, res) => {
 });
 
 // Utiliser les routes d'API depuis le dossier api
-app.use("/api", apiRoutes);
+app.use("/", apiRoutes);
 
 // Route pour servir des fichiers statiques (optionnel)
 app.use("/static", express.static("public"));

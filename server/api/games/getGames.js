@@ -11,12 +11,6 @@ const getGames = (req, res) => {
       .slice()
       .reverse()
       .map((game) => {
-        // Créer le mapping des scores par round
-        const scoreMapping = {};
-        game.rounds.forEach((round, index) => {
-          scoreMapping[`round_${index + 1}`] = round;
-        });
-
         // Séparer les appareils par type (defaultDevice)
         const defaultDevices = game.devices.filter((device) => device.defaultDevice === true);
         const nonDefaultDevices = game.devices.filter((device) => device.defaultDevice === false);
@@ -24,9 +18,20 @@ const getGames = (req, res) => {
         return {
           id: game.id,
           status: game.status,
-          score: scoreMapping,
+          score: game.score,
+          advancement: game.advancement,
           defaultDevices: defaultDevices,
           nonDefaultDevices: nonDefaultDevices,
+          // Données de fin de partie
+          gameEnded: game.gameEnded,
+          finalScore: game.finalScore,
+          finalRoundNumber: game.finalRoundNumber,
+          finalRoundResults: game.finalRoundResults,
+          gameResult: game.gameResult,
+          currentRound: game.currentRound,
+          rounds: game.rounds,
+          gameMode: game.gameMode,
+          players: game.players,
         };
       });
 

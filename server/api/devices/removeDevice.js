@@ -42,36 +42,60 @@ function removeDevice(req, res) {
       });
     }
 
-    // Trouver l'appareil dans la partie
-    const deviceIndex = game.devices.findIndex((d) => d.socketId === deviceSocketId);
-    if (deviceIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        message: `Appareil ${deviceSocketId} non trouvé dans la partie ${gameId}`,
-        timestamp: new Date().toISOString(),
-      });
+    // Vérifier si c'est un joueur ou un device
+    let device = null;
+    let isPlayer = false;
+
+    // Chercher d'abord dans les joueurs
+    const playerIndex = game.players.findIndex((p) => p.socketId === deviceSocketId);
+    if (playerIndex !== -1) {
+      device = game.players[playerIndex];
+      isPlayer = true;
+      console.log(`👤 Joueur trouvé: ${device.name} (${device.socketId})`);
+    } else {
+      // Chercher dans les devices
+      const deviceIndex = game.devices.findIndex((d) => d.socketId === deviceSocketId);
+      if (deviceIndex === -1) {
+        return res.status(404).json({
+          success: false,
+          message: `Appareil ${deviceSocketId} non trouvé dans la partie ${gameId}`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      device = game.devices[deviceIndex];
+      console.log(`📱 Appareil trouvé: ${device.name} (${device.socketId})`);
     }
 
-    const device = game.devices[deviceIndex];
-    console.log(`📱 Appareil trouvé: ${device.name} (${device.socketId})`);
+    // Supprimer selon le type
+    if (isPlayer) {
+      // Supprimer le joueur de la liste des joueurs
+      game.players.splice(playerIndex, 1);
+      console.log(`✅ Joueur ${device.name} supprimé avec succès de la partie ${gameId}`);
+      console.log(`📊 Partie ${gameId}: ${game.players.length} joueur(s) restant(s)`);
+    } else {
+      // Supprimer l'appareil de la partie
+      game.devices.splice(
+        game.devices.findIndex((d) => d.socketId === deviceSocketId),
+        1
+      );
+      console.log(`✅ Appareil ${device.name} supprimé avec succès de la partie ${gameId}`);
+      console.log(`📊 Partie ${gameId}: ${game.devices.length} appareil(s) restant(s)`);
+    }
 
-    // Supprimer l'appareil de la partie
-    game.devices.splice(deviceIndex, 1);
-
-    // Si c'est un appareil par défaut, le retirer aussi de la liste globale
-    if (device.defaultDevice) {
+    // Si c'est un appareil par défaut (et pas un joueur), le retirer aussi de la liste globale
+    if (!isPlayer && device.defaultDevice) {
       const globalDeviceIndex = devices.findIndex((d) => d.socketId === deviceSocketId);
       if (globalDeviceIndex !== -1) {
-        devices.splice(globalDeviceIndex, 1);
-        console.log(`🗑️ Appareil par défaut ${device.name} supprimé de la liste globale`);
+        device.game = null;
+        console.log(`🗑️ Appareil par défaut ${device.name} supprimé de la partie`);
       }
     }
 
     // Mettre à jour le statut de la partie si nécessaire
-    if (game.devices.length === 0 && game.status === "in_progress") {
-      game.status = "waiting";
-      console.log(`🔄 Partie ${gameId} remise en attente (aucun appareil)`);
-    }
+    // if (game.devices.length === 0 && game.status === "in_progress") {
+    //   game.status = "waiting";
+    //   console.log(`🔄 Partie ${gameId} remise en attente (aucun appareil)`);
+    // }
 
     console.log(`✅ Appareil ${device.name} supprimé avec succès de la partie ${gameId}`);
     console.log(`📊 Partie ${gameId}: ${game.devices.length} appareil(s) restant(s)`);
@@ -114,17 +138,22 @@ function removeDevice(req, res) {
     }
 
     // Réponse de succès
+    const entityType = isPlayer ? "Joueur" : "Appareil";
+    const remainingCount = isPlayer ? game.players.length : game.devices.length;
+
     res.json({
       success: true,
-      message: `Appareil ${device.name} supprimé avec succès de la partie ${gameId}`,
+      message: `${entityType} ${device.name} supprimé avec succès de la partie ${gameId}`,
       data: {
         gameId: gameIdNum,
         deviceRemoved: {
           name: device.name,
           socketId: device.socketId,
-          type: device.type,
+          type: isPlayer ? "player" : device.type,
+          isPlayer: isPlayer,
         },
         remainingDevices: game.devices.length,
+        remainingPlayers: game.players.length,
         gameStatus: game.status,
       },
       timestamp: new Date().toISOString(),

@@ -282,16 +282,6 @@ module.exports = (io, gameManagerInstance = null) => {
           return;
         }
 
-        // Vérifier le statut de la game
-        if (game.status !== "waiting") {
-          socket.emit("connection_error", {
-            success: false,
-            error: "Statut invalide",
-            message: `La game ${gameId} n'accepte plus de connexions. Statut: ${game.status}`,
-          });
-          return;
-        }
-
         // Créer un nouveau device invité (pas dans la liste globale)
         const guestDevice = new Device();
         guestDevice.name = name;
@@ -638,32 +628,72 @@ module.exports = (io, gameManagerInstance = null) => {
     // Événement pour demander le round suivant
     socket.on("next_round", async (data) => {
       try {
-        if (!socket.gameId || !socket.deviceInfo) {
-          socket.emit("next_round_error", {
-            success: false,
-            error: "Non connecté à une partie",
-            message: "Vous devez être connecté à une partie pour demander le round suivant",
+        // Vérifier si c'est une demande du control center
+        if (socket.isControlCenter) {
+          const { gameId } = data;
+
+          // Validation des données
+          if (!gameId) {
+            socket.emit("control_center_error", {
+              success: false,
+              error: "Données manquantes",
+              message: "gameId est requis",
+            });
+            return;
+          }
+
+          console.log(`▶️ Demande de round suivant depuis le control center pour la partie ${gameId}`);
+
+          // Déclencher le round suivant via le GameManager
+          await gameManager.handleNextRound(parseInt(gameId));
+
+          // Confirmer le succès
+          socket.emit("control_center_next_round_success", {
+            success: true,
+            message: "Round suivant déclenché avec succès",
+            gameId: parseInt(gameId),
+            timestamp: new Date().toISOString(),
           });
-          return;
+
+          console.log(`✅ Round suivant déclenché avec succès pour la partie ${gameId}`);
+        } else {
+          // Demande d'un device connecté à une partie
+          if (!socket.gameId || !socket.deviceInfo) {
+            socket.emit("next_round_error", {
+              success: false,
+              error: "Non connecté à une partie",
+              message: "Vous devez être connecté à une partie pour demander le round suivant",
+            });
+            return;
+          }
+
+          console.log(`▶️ Demande de round suivant reçue de ${socket.deviceInfo.name}`);
+
+          // Transmettre la demande au GameManager
+          await gameManager.handleNextRound(socket.gameId, socket.deviceInfo);
+
+          // Confirmer la réception
+          socket.emit("next_round_received", {
+            success: true,
+            message: "Demande de round suivant traitée",
+          });
         }
-
-        console.log(`▶️ Demande de round suivant reçue de ${socket.deviceInfo.name}`);
-
-        // Transmettre la demande au GameManager
-        await gameManager.handleNextRound(socket.gameId, socket.deviceInfo);
-
-        // Confirmer la réception
-        socket.emit("next_round_received", {
-          success: true,
-          message: "Demande de round suivant traitée",
-        });
       } catch (error) {
         console.error("Erreur lors du traitement de la demande de round suivant:", error);
-        socket.emit("next_round_error", {
-          success: false,
-          error: "Erreur serveur",
-          message: error.message,
-        });
+
+        if (socket.isControlCenter) {
+          socket.emit("control_center_error", {
+            success: false,
+            error: "Erreur lors du déclenchement du round suivant",
+            message: error.message,
+          });
+        } else {
+          socket.emit("next_round_error", {
+            success: false,
+            error: "Erreur serveur",
+            message: error.message,
+          });
+        }
       }
     });
 
@@ -704,42 +734,42 @@ module.exports = (io, gameManagerInstance = null) => {
       }
     });
 
-    // Événement pour supprimer un appareil d'une partie
-    socket.on("remove_device_from_game", (data) => {
-      try {
-        const { gameId, deviceSocketId } = data;
+    //   // Événement pour supprimer un appareil d'une partie
+    //   socket.on("remove_device_from_game", (data) => {
+    //     try {
+    //       const { gameId, deviceSocketId } = data;
 
-        // Validation des données
-        if (!gameId || !deviceSocketId) {
-          socket.emit("remove_device_error", {
-            success: false,
-            error: "Données manquantes",
-            message: "gameId et deviceSocketId sont requis",
-          });
-          return;
-        }
+    //       // Validation des données
+    //       if (!gameId || !deviceSocketId) {
+    //         socket.emit("remove_device_error", {
+    //           success: false,
+    //           error: "Données manquantes",
+    //           message: "gameId et deviceSocketId sont requis",
+    //         });
+    //         return;
+    //       }
 
-        // Vérifier que la socket est un control-center
-        if (!socket.isControlCenter) {
-          socket.emit("remove_device_error", {
-            success: false,
-            error: "Non autorisé",
-            message: "Seul le control-center peut supprimer des appareils",
-          });
-          return;
-        }
+    //       // Vérifier que la socket est un control-center
+    //       if (!socket.isControlCenter) {
+    //         socket.emit("remove_device_error", {
+    //           success: false,
+    //           error: "Non autorisé",
+    //           message: "Seul le control-center peut supprimer des appareils",
+    //         });
+    //         return;
+    //       }
 
-        // Traiter la suppression
-        handleDeviceRemoval(gameId, deviceSocketId, socket);
-      } catch (error) {
-        console.error("Erreur lors de la suppression de l'appareil:", error);
-        socket.emit("remove_device_error", {
-          success: false,
-          error: "Erreur serveur",
-          message: error.message,
-        });
-      }
-    });
+    //       // Traiter la suppression
+    //       handleDeviceRemoval(gameId, deviceSocketId, socket);
+    //     } catch (error) {
+    //       console.error("Erreur lors de la suppression de l'appareil:", error);
+    //       socket.emit("remove_device_error", {
+    //         success: false,
+    //         error: "Erreur serveur",
+    //         message: error.message,
+    //       });
+    //     }
+    //   });
   });
 
   // Fonctions helper pour traiter les demandes autorisées
@@ -850,7 +880,22 @@ module.exports = (io, gameManagerInstance = null) => {
       // Ajouter le device invité à la game
       const game = games.find((g) => g.id === gameId);
       if (game) {
-        game.devices.push(device);
+        // Si le type est "selection" et le gameMode est "multi", créer un Player
+        if (device.type === "selection" && game.gameMode === "multi") {
+          const { Player } = require("../store.js");
+          const newPlayer = new Player();
+          newPlayer.name = device.name;
+          newPlayer.socketId = device.socketId;
+          newPlayer.game = gameId;
+          newPlayer.score = Array(game.rounds).fill(null);
+
+          // Ajouter le player à la liste des players de la game
+          game.players.push(newPlayer);
+
+          console.log(`👤 Player "${device.name}" créé et ajouté à la game ${gameId} (mode multi)`);
+        } else {
+          game.devices.push(device);
+        }
 
         // Joindre la room correspondante à la game
         const roomName = `game_${gameId}`;
@@ -931,6 +976,7 @@ module.exports = (io, gameManagerInstance = null) => {
         globalIO.to(roomName).emit("game_advancement_update", {
           gameId: game.id,
           advancement: game.advancement,
+          game: game,
           timestamp: new Date().toISOString(),
         });
         console.log(`📢 Avancement envoyé à tous les devices de la room ${roomName}`);

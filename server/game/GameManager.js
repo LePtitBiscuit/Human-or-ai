@@ -61,7 +61,6 @@ class GameManager {
    * @param {Object} deviceInfo - Informations sur le device qui a répondu
    */
   async handleHumanResponse(gameId, humanResponse, deviceInfo) {
-    console.log(this.activeGames);
     const roundManager = this.activeGames.get(gameId);
 
     if (!roundManager) {
@@ -92,9 +91,9 @@ class GameManager {
   /**
    * Traite la demande de round suivant
    * @param {number} gameId - ID de la partie
-   * @param {Object} deviceInfo - Informations sur le device qui a demandé le round suivant
+   * @param {Object} deviceInfo - Informations sur le device qui a demandé le round suivant (optionnel pour le control center)
    */
-  async handleNextRound(gameId, deviceInfo) {
+  async handleNextRound(gameId, deviceInfo = null) {
     const roundManager = this.activeGames.get(gameId);
 
     if (!roundManager) {
@@ -102,7 +101,13 @@ class GameManager {
       return;
     }
 
-    await roundManager.handleNextRound(deviceInfo);
+    // Si deviceInfo est null, c'est une demande du control center
+    if (deviceInfo === null) {
+      console.log(`▶️ Demande de round suivant depuis le control center pour la partie ${gameId}`);
+      await roundManager.prepareNextRound();
+    } else {
+      await roundManager.handleNextRound(deviceInfo);
+    }
   }
 
   /**

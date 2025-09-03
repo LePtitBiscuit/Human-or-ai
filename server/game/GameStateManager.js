@@ -234,7 +234,6 @@ class GameStateManager {
    * @param {string} newAdvancement - Nouvel avancement
    */
   updateGameAdvancement(roomName, newAdvancement) {
-    console.log("test5");
     try {
       // Extraire l'ID de la partie depuis le nom de la room
       const gameId = roomName.replace("game_", "");
@@ -242,7 +241,6 @@ class GameStateManager {
 
       // Mettre à jour l'avancement dans la partie
       if (game && game.advancement !== undefined) {
-        console.log("test6");
         game.advancement = newAdvancement;
         console.log(`📊 Avancement de la partie ${gameId} mis à jour:`, newAdvancement);
       }
@@ -251,6 +249,7 @@ class GameStateManager {
       this.io.to(roomName).emit("game_advancement_update", {
         gameId: parseInt(gameId),
         advancement: newAdvancement,
+        game: game,
         timestamp: new Date().toISOString(),
       });
 
