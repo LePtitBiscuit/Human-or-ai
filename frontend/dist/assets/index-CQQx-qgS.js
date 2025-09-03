@@ -8051,7 +8051,7 @@ function ys(e, t) {
 Object.assign(ys, { Manager: Yn, Socket: il, io: ys, connect: ys })
 class kf {
   constructor() {
-    ;((this.socket = null), (this.baseURL = 'https://https://human-or-ai.vizyondijital.fr/api'))
+    ;((this.socket = null), (this.baseURL = 'https://human-or-ai.vizyondijital.fr/api'))
   }
   connect(t) {
     try {
@@ -10421,7 +10421,7 @@ const ll = Ie(Im, [
 ])
 class Nm {
   constructor() {
-    ;((this.socket = null), (this.baseURL = 'https://https://human-or-ai.vizyondijital.fr/api'))
+    ;((this.socket = null), (this.baseURL = 'https://human-or-ai.vizyondijital.fr/api'))
   }
   connect() {
     try {

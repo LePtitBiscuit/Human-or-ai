@@ -3,7 +3,7 @@ import io from 'socket.io-client'
 class SocketService {
   constructor() {
     this.socket = null
-    this.baseURL = 'https://https://human-or-ai.vizyondijital.fr/api'
+    this.baseURL = 'https://human-or-ai.vizyondijital.fr/api'
   }
 
   /**
