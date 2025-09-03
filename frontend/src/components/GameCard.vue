@@ -456,7 +456,7 @@ export default {
 
         // Appel à l'API pour lancer la partie
         const response = await fetch(
-          `https://https://human-or-ai.vizyondijital.fr/api/api/launchgame/${this.game.id}`,
+          `https://human-or-ai.vizyondijital.fr/api/launchgame/${this.game.id}`,
           {
             method: 'POST',
             headers: {

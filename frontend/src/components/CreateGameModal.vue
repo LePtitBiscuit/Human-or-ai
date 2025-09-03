@@ -288,9 +288,7 @@ export default {
         this.devicesError = null
         console.log('🔄 Récupération des appareils disponibles...')
 
-        const response = await fetch(
-          'https://https://human-or-ai.vizyondijital.fr/api/api/devices/available',
-        )
+        const response = await fetch('https://human-or-ai.vizyondijital.fr/api/devices/available')
 
         if (!response.ok) {
           throw new Error(`Erreur HTTP: ${response.status}`)
@@ -426,16 +424,13 @@ export default {
         console.log('Données envoyées au serveur:', serverData)
 
         // Envoyer les données au serveur
-        const response = await fetch(
-          'https://https://human-or-ai.vizyondijital.fr/api/api/creategame',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(serverData),
+        const response = await fetch('https://human-or-ai.vizyondijital.fr/api/creategame', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
           },
-        )
+          body: JSON.stringify(serverData),
+        })
 
         if (!response.ok) {
           const errorData = await response.json()

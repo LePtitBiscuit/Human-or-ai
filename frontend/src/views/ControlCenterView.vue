@@ -532,16 +532,13 @@ export default {
         }
 
         // Vérifier la validité du token auprès du serveur
-        const response = await fetch(
-          'https://https://human-or-ai.vizyondijital.fr/api/api/auth/verify',
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
+        const response = await fetch('https://human-or-ai.vizyondijital.fr/api/auth/verify', {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
           },
-        )
+        })
 
         if (response.ok) {
           this.isAuthenticated = true
@@ -662,7 +659,7 @@ export default {
         this.authorizationsError = null
 
         const response = await fetch(
-          'https://https://human-or-ai.vizyondijital.fr/api/api/devices/pending-requests',
+          'https://human-or-ai.vizyondijital.fr/api/devices/pending-requests',
         )
         const data = await response.json()
 
@@ -777,9 +774,7 @@ export default {
         // Charger les appareils disponibles avant d'ouvrir le modal
         console.log('🔄 Chargement des appareils disponibles pour la création de partie...')
 
-        const response = await fetch(
-          'https://https://human-or-ai.vizyondijital.fr/api/api/devices/available',
-        )
+        const response = await fetch('https://human-or-ai.vizyondijital.fr/api/devices/available')
 
         if (!response.ok) {
           throw new Error(`Erreur HTTP: ${response.status}`)
@@ -847,7 +842,7 @@ export default {
 
         // Appeler l'API pour supprimer l'appareil de la partie
         const response = await fetch(
-          `https://https://human-or-ai.vizyondijital.fr/api/api/devices/${gameId}/remove/${device.socketId}`,
+          `https://human-or-ai.vizyondijital.fr/api/devices/${gameId}/remove/${device.socketId}`,
           {
             method: 'DELETE',
             headers: {
@@ -884,7 +879,7 @@ export default {
 
         // Appeler l'API pour supprimer le joueur de la partie
         const response = await fetch(
-          `https://https://human-or-ai.vizyondijital.fr/api/api/devices/${gameId}/remove/${player.socketId}`,
+          `https://human-or-ai.vizyondijital.fr/api/devices/${gameId}/remove/${player.socketId}`,
           {
             method: 'DELETE',
             headers: {
@@ -1077,9 +1072,7 @@ export default {
         this.gamesError = null
         console.log('🔄 Chargement des parties...')
 
-        const response = await fetch(
-          'https://https://human-or-ai.vizyondijital.fr/api/api/getgames',
-        )
+        const response = await fetch('https://human-or-ai.vizyondijital.fr/api/getgames')
 
         if (!response.ok) {
           throw new Error(`Erreur HTTP: ${response.status}`)
@@ -1166,9 +1159,7 @@ export default {
         this.devicesError = null
         console.log('🔄 Chargement des appareils par défaut...')
 
-        const response = await fetch(
-          'https://https://human-or-ai.vizyondijital.fr/api/api/devices/default',
-        )
+        const response = await fetch('https://human-or-ai.vizyondijital.fr/api/devices/default')
 
         if (!response.ok) {
           throw new Error(`Erreur HTTP: ${response.status}`)
