@@ -3,18 +3,20 @@ import io from 'socket.io-client'
 class DeviceSocketService {
   constructor() {
     this.socket = null
-    this.baseURL = 'https://human-or-ai.vizyondijital.fr/api'
+    this.baseURL = 'https://human-or-ai.vizyondijital.fr'
   }
 
   /**
-   * Établir une connexion Socket.IO simple pour les devices
+   * Établir une connexion Socket.IO avec authentification JWT
    */
-  connect() {
+  connect(token) {
     try {
       // Établir la connexion Socket.IO
       this.socket = io(this.baseURL, {
+        path: '/socket.io/',
         transports: ['websocket', 'polling'],
         autoConnect: true,
+        auth: { token }, // si tu veux envoyer ton JWT
       })
 
       // Gérer la connexion
