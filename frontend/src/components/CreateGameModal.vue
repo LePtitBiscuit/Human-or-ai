@@ -73,8 +73,8 @@
               <span class="mr-2 text-xs font-medium text-gray-600">Solo</span>
               <button
                 @click="toggleGameMode"
-                class="relative inline-flex h-6 w-12 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none"
-                :class="gameMode === 'solo' ? 'bg-purple-600' : 'bg-gray-300'"
+                class="relative inline-flex h-6 w-12 items-center rounded-full duration-200 ease-in-out focus:outline-none"
+                :class="gameMode === 'solo' ? 'bg-purple-600' : 'bg-purple-600'"
               >
                 <span
                   class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out"
@@ -278,7 +278,7 @@ export default {
     },
 
     toggleGameMode() {
-      this.gameMode = this.gameMode === 'solo' ? 'multijoueur' : 'solo'
+      this.gameMode = this.gameMode === 'solo' ? 'multi' : 'solo'
     },
 
     // Récupérer les appareils disponibles depuis l'API
@@ -288,7 +288,9 @@ export default {
         this.devicesError = null
         console.log('🔄 Récupération des appareils disponibles...')
 
-        const response = await fetch('http://localhost:3000/api/devices/available')
+        const response = await fetch(
+          'https://https://human-or-ai.vizyondijital.fr/api/api/devices/available',
+        )
 
         if (!response.ok) {
           throw new Error(`Erreur HTTP: ${response.status}`)
@@ -418,18 +420,22 @@ export default {
         const serverData = {
           nombreManches: this.rounds,
           devicesData: devicesData,
+          gameMode: this.gameMode,
         }
 
         console.log('Données envoyées au serveur:', serverData)
 
         // Envoyer les données au serveur
-        const response = await fetch('http://localhost:3000/api/creategame', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
+        const response = await fetch(
+          'https://https://human-or-ai.vizyondijital.fr/api/api/creategame',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(serverData),
           },
-          body: JSON.stringify(serverData),
-        })
+        )
 
         if (!response.ok) {
           const errorData = await response.json()

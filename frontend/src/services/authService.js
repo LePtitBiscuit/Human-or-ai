@@ -1,7 +1,7 @@
 // Service d'authentification côté client
 class AuthService {
   constructor() {
-    this.baseURL = 'http://localhost:3000/api'
+    this.baseURL = 'https://https://human-or-ai.vizyondijital.fr/api/api'
     this.tokenKey = 'humanai_jwt_token'
   }
 

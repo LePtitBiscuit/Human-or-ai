@@ -30,7 +30,7 @@
 
     <!-- Container principal avec les onglets -->
     <div
-      class="w-full h-[80vh] bg-white/50 backdrop-opacity-10 backdrop-blur-sm rounded-3xl p-8 pt-2 shadow-2xl overflow-hidden"
+      class="w-full h-[80vh] bg-white/30 backdrop-opacity-10 backdrop-blur-sm rounded-3xl p-8 pt-2 shadow-2xl overflow-hidden"
     >
       <div class="rounded-2xl h-full flex flex-col">
         <!-- Navigation des onglets -->
@@ -191,9 +191,10 @@
                       :key="game.id"
                       :game="game"
                       @stop-game="stopGame"
-                      @remove-device="removeDeviceFromGame"
+                      @remove-device="handleRemoveDeviceOrPlayer"
                       @game-launched="handleGameLaunched"
-                      @show-notification="showNotification"
+                      @next-round-triggered="handleNextRoundTriggered"
+                      @show-qr-code="handleShowQRCode"
                     />
                   </div>
                 </div>
@@ -531,13 +532,16 @@ export default {
         }
 
         // Vérifier la validité du token auprès du serveur
-        const response = await fetch('http://localhost:3000/api/auth/verify', {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
+        const response = await fetch(
+          'https://https://human-or-ai.vizyondijital.fr/api/api/auth/verify',
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
           },
-        })
+        )
 
         if (response.ok) {
           this.isAuthenticated = true
@@ -608,6 +612,44 @@ export default {
             this.loadGames()
           }
         })
+
+        // Écouter l'événement round_ended
+        socketService.on('round_ended', (data) => {
+          console.log('🏁 Round terminé reçu par le control center:', data)
+          console.log('🔍 Données reçues détaillées:', {
+            gameId: data.gameId,
+            roundNumber: data.roundNumber,
+            hasRoundResults: !!data.roundResults,
+            hasScore: !!data.score,
+            timestamp: data.timestamp,
+          })
+
+          // Mettre à jour l'état local pour afficher le bouton "Manche suivante"
+          this.updateGameRoundEnded(data.gameId, data.roundNumber, data.roundResults, data.score)
+
+          // NE PAS recharger les données car cela écrase l'état roundEnded
+          // if (this.currentTab === 'parties') {
+          //   this.loadGames()
+          // }
+        })
+
+        // Écouter l'événement game_ended
+        socketService.on('game_ended', (data) => {
+          console.log('🎉 Partie terminée reçue par le control center:', data)
+          console.log('🔍 Données reçues détaillées:', {
+            game: data.game,
+            hasGame: !!data.game,
+            gameId: data.game ? data.game.id : null,
+            gameEnded: data.game ? data.game.gameEnded : null,
+            finalScore: data.game ? data.game.finalScore : null,
+            finalRoundNumber: data.game ? data.game.finalRoundNumber : null,
+            gameResult: data.game ? data.game.gameResult : null,
+            timestamp: data.timestamp,
+          })
+
+          // Mettre à jour l'état local pour marquer la partie comme terminée
+          this.updateGameEnded(data.game)
+        })
       } catch (error) {
         console.error('Erreur lors de la connexion Socket.IO:', error)
       }
@@ -619,7 +661,9 @@ export default {
         this.isLoadingAuthorizations = true
         this.authorizationsError = null
 
-        const response = await fetch('http://localhost:3000/api/devices/pending-requests')
+        const response = await fetch(
+          'https://https://human-or-ai.vizyondijital.fr/api/api/devices/pending-requests',
+        )
         const data = await response.json()
 
         if (data.success) {
@@ -733,7 +777,9 @@ export default {
         // Charger les appareils disponibles avant d'ouvrir le modal
         console.log('🔄 Chargement des appareils disponibles pour la création de partie...')
 
-        const response = await fetch('http://localhost:3000/api/devices/available')
+        const response = await fetch(
+          'https://https://human-or-ai.vizyondijital.fr/api/api/devices/available',
+        )
 
         if (!response.ok) {
           throw new Error(`Erreur HTTP: ${response.status}`)
@@ -782,6 +828,16 @@ export default {
       // this.$emit('stop-game', gameId)
     },
 
+    // Gérer la suppression d'un device ou d'un joueur selon le type
+    handleRemoveDeviceOrPlayer(data) {
+      const { deviceType } = data
+      if (deviceType === 'player') {
+        this.removePlayerFromGame(data)
+      } else {
+        this.removeDeviceFromGame(data)
+      }
+    },
+
     async removeDeviceFromGame(data) {
       try {
         const { gameId, device, deviceType } = data
@@ -791,7 +847,7 @@ export default {
 
         // Appeler l'API pour supprimer l'appareil de la partie
         const response = await fetch(
-          `http://localhost:3000/api/devices/${gameId}/remove/${device.socketId}`,
+          `https://https://human-or-ai.vizyondijital.fr/api/api/devices/${gameId}/remove/${device.socketId}`,
           {
             method: 'DELETE',
             headers: {
@@ -816,6 +872,97 @@ export default {
         }
       } catch (error) {
         console.error("❌ Erreur lors de la suppression de l'appareil:", error)
+      }
+    },
+
+    async removePlayerFromGame(data) {
+      try {
+        const { gameId, player, deviceType } = data
+        console.log(
+          `🗑️ Suppression du joueur ${player.name} (${deviceType}) de la partie ${gameId}`,
+        )
+
+        // Appeler l'API pour supprimer le joueur de la partie
+        const response = await fetch(
+          `https://https://human-or-ai.vizyondijital.fr/api/api/devices/${gameId}/remove/${player.socketId}`,
+          {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          },
+        )
+
+        if (!response.ok) {
+          throw new Error(`Erreur HTTP: ${response.status}`)
+        }
+
+        const result = await response.json()
+
+        if (result.success) {
+          console.log('✅ Joueur supprimé avec succès de la partie')
+
+          // Mettre à jour l'état local au lieu de recharger
+          this.updateGameAfterPlayerRemoval(gameId, player.socketId, deviceType)
+        } else {
+          throw new Error(result.message || 'Erreur lors de la suppression du joueur')
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors de la suppression du joueur:', error)
+      }
+    },
+
+    // Mettre à jour l'état local après suppression d'un joueur
+    updateGameAfterPlayerRemoval(gameId, playerSocketId, deviceType) {
+      try {
+        // Trouver la partie dans la liste
+        const gameIndex = this.games.findIndex((g) => g.id === parseInt(gameId))
+
+        if (gameIndex !== -1) {
+          const game = this.games[gameIndex]
+          console.log('🔍 Partie trouvée:', game)
+          console.log('👥 Structure des joueurs:', {
+            players: game.players,
+          })
+
+          // Supprimer le joueur de la liste des joueurs
+          if (game.players && Array.isArray(game.players)) {
+            const playerIndex = game.players.findIndex((p) => p.socketId === playerSocketId)
+            if (playerIndex !== -1) {
+              console.log('🗑️ Joueur trouvé, ajout de la classe removing')
+              // Ajouter une classe pour l'animation de sortie
+              game.players[playerIndex].removing = true
+
+              // Supprimer le joueur après l'animation
+              setTimeout(() => {
+                game.players.splice(playerIndex, 1)
+                console.log('✅ Joueur supprimé de la liste')
+
+                // Mettre à jour le statut de la partie si nécessaire
+                if (
+                  game.players.length === 0 &&
+                  game.defaultDevices.length === 0 &&
+                  game.nonDefaultDevices.length === 0 &&
+                  game.status === 'in_progress'
+                ) {
+                  game.status = 'waiting'
+                  console.log('🔄 Partie remise en attente (aucun joueur/appareil)')
+                }
+
+                // Forcer la mise à jour de l'interface
+                this.$forceUpdate()
+              }, 150) // Durée de l'animation réduite
+            } else {
+              console.log('⚠️ Joueur non trouvé dans la liste')
+            }
+          } else {
+            console.log("⚠️ game.players n'existe pas ou n'est pas un tableau")
+          }
+        } else {
+          console.log('⚠️ Partie non trouvée dans la liste')
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors de la mise à jour après suppression du joueur:', error)
       }
     },
 
@@ -930,7 +1077,9 @@ export default {
         this.gamesError = null
         console.log('🔄 Chargement des parties...')
 
-        const response = await fetch('http://localhost:3000/api/getgames')
+        const response = await fetch(
+          'https://https://human-or-ai.vizyondijital.fr/api/api/getgames',
+        )
 
         if (!response.ok) {
           throw new Error(`Erreur HTTP: ${response.status}`)
@@ -939,7 +1088,63 @@ export default {
         const data = await response.json()
 
         if (data.success) {
-          this.games = data.games || []
+          // Préserver l'état roundEnded des parties existantes
+          const existingGames = this.games || []
+          const newGames = data.games || []
+
+          // Créer un map des parties existantes avec leur état advancement
+          // On ne préserve que les propriétés qui ne sont pas persistées côté serveur
+          const existingGamesMap = new Map()
+          existingGames.forEach((game) => {
+            if (game.advancement !== undefined) {
+              existingGamesMap.set(game.id, {
+                advancement: game.advancement,
+                currentRoundNumber: game.currentRoundNumber,
+                lastRoundResults: game.lastRoundResults,
+                finalRoundNumber: game.finalRoundNumber,
+                finalScore: game.finalScore,
+                finalRoundResults: game.finalRoundResults,
+                gameEnded: game.gameEnded,
+                gameResult: game.gameResult,
+                // Préserver le statut si la partie est terminée
+                status: game.status === 'finished' ? 'finished' : undefined,
+                // NE PAS préserver currentRound et rounds - ils viennent du serveur
+              })
+              console.log(
+                `🔍 État préservé pour la partie ${game.id}: advancement=${game.advancement}, status=${game.status}, gameEnded=${game.gameEnded}`,
+              )
+            }
+          })
+
+          // Appliquer l'état préservé aux nouvelles données
+          this.games = newGames.map((game) => {
+            console.log('New Game', game)
+            const existingState = existingGamesMap.get(game.id)
+            if (existingState) {
+              console.log(
+                `🔄 Application de l'état préservé à la partie ${game.id}: advancement=${existingState.advancement}, status=${existingState.status}, gameEnded=${existingState.gameEnded}`,
+              )
+              // Créer un nouvel objet pour éviter les références partagées
+              const updatedGame = { ...game }
+              // Appliquer seulement les propriétés qui ne sont pas persistées côté serveur
+              updatedGame.advancement = existingState.advancement
+              updatedGame.currentRoundNumber = existingState.currentRoundNumber
+              updatedGame.lastRoundResults = existingState.lastRoundResults
+              updatedGame.finalRoundNumber = existingState.finalRoundNumber
+              updatedGame.finalScore = existingState.finalScore
+              updatedGame.finalRoundResults = existingState.finalRoundResults
+              updatedGame.gameEnded = existingState.gameEnded
+              updatedGame.gameResult = existingState.gameResult
+              // currentRound et rounds viennent du serveur, ne pas les écraser
+              // Appliquer le statut si la partie est terminée
+              if (existingState.status === 'finished') {
+                updatedGame.status = 'finished'
+              }
+              return updatedGame
+            }
+            return game
+          })
+
           console.log('✅ Parties chargées:', this.games.length)
         } else {
           throw new Error(data.message || 'Erreur lors du chargement des parties')
@@ -961,7 +1166,9 @@ export default {
         this.devicesError = null
         console.log('🔄 Chargement des appareils par défaut...')
 
-        const response = await fetch('http://localhost:3000/api/devices/default')
+        const response = await fetch(
+          'https://https://human-or-ai.vizyondijital.fr/api/api/devices/default',
+        )
 
         if (!response.ok) {
           throw new Error(`Erreur HTTP: ${response.status}`)
@@ -1055,24 +1262,100 @@ export default {
 
       // Recharger la liste des parties pour afficher le nouveau statut
       this.loadGames()
-
-      // Optionnel : Afficher une notification de succès
-      this.showNotification({
-        type: 'success',
-        title: 'Partie lancée',
-        message: `La partie ${gameId} a été lancée avec succès !`,
-      })
     },
 
-    // Afficher une notification
-    showNotification(notification) {
-      console.log('🔔 Notification:', notification)
+    // Gérer le déclenchement d'une manche suivante
+    handleNextRoundTriggered(gameId) {
+      console.log(`▶️ Manche suivante déclenchée pour la partie ${gameId}`)
 
-      // Ici vous pouvez implémenter l'affichage de notifications
-      // Par exemple, utiliser un système de toast ou d'alerte
+      // Recharger la liste des parties pour afficher le nouveau statut
+      this.loadGames()
+    },
 
-      // Pour l'instant, on utilise console.log
-      // Vous pouvez ajouter un système de notifications visuelles plus tard
+    handleShowQRCode(gameId) {
+      console.log(`📱 Toggle du QR code pour la partie ${gameId}`)
+
+      // Émettre un événement socket pour toggle le QR code sur l'écran de présentation
+      socketService.emit('toggle_qr_code', { gameId })
+    },
+
+    // Mettre à jour l'état local quand un round se termine
+    updateGameRoundEnded(gameId, roundNumber, roundResults, score) {
+      try {
+        console.log(
+          `🔄 Mise à jour du round terminé - gameId: ${gameId}, roundNumber: ${roundNumber}`,
+        )
+
+        // Trouver la partie dans la liste
+        const gameIndex = this.games.findIndex((g) => g.id === parseInt(gameId))
+        console.log(`🔍 Index de la partie trouvé: ${gameIndex}`)
+
+        if (gameIndex !== -1) {
+          const game = this.games[gameIndex]
+          console.log(`🎮 Partie trouvée:`, game)
+
+          // Marquer que le round est terminé et qu'on peut passer au suivant
+          // Dans Vue 3, on peut directement assigner les propriétés
+          game.advancement = 'round_ended'
+          game.currentRoundNumber = roundNumber
+          game.lastRoundResults = roundResults
+          game.score = score
+
+          console.log(`🏁 Round ${roundNumber} terminé pour la partie ${gameId}`)
+          console.log('📊 Résultats du round:', roundResults)
+          console.log(`✅ État de la partie mis à jour - advancement: ${game.advancement}`)
+        } else {
+          console.log('⚠️ Partie non trouvée pour la mise à jour du round terminé')
+          console.log(
+            '📋 Parties disponibles:',
+            this.games.map((g) => ({ id: g.id, status: g.status })),
+          )
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors de la mise à jour du round terminé:', error)
+      }
+    },
+
+    // Mettre à jour l'état local quand une partie se termine
+    updateGameEnded(gameData) {
+      try {
+        console.log(`🎉 Mise à jour de la partie terminée - gameId: ${gameData.id}`)
+
+        // Trouver la partie dans la liste
+        const gameIndex = this.games.findIndex((g) => g.id === parseInt(gameData.id))
+        console.log(`🔍 Index de la partie trouvé: ${gameIndex}`)
+
+        if (gameIndex !== -1) {
+          const game = this.games[gameIndex]
+          console.log(`🎮 Partie trouvée:`, game)
+
+          // Mettre à jour la partie avec toutes les données de fin de partie
+          game.advancement = 'game_ended'
+          game.status = 'finished'
+          game.gameEnded = gameData.gameEnded
+          game.finalScore = gameData.finalScore
+          game.finalRoundNumber = gameData.finalRoundNumber
+          game.finalRoundResults = gameData.finalRoundResults
+          game.gameResult = gameData.gameResult
+
+          console.log(
+            `🏆 Partie ${gameData.id} terminée après ${gameData.finalRoundNumber} manches`,
+          )
+          console.log('📊 Score final:', gameData.finalScore)
+          console.log('🏆 Résultat:', gameData.gameResult)
+          console.log(
+            `✅ État de la partie mis à jour - advancement: ${game.advancement}, status: ${game.status}`,
+          )
+        } else {
+          console.log('⚠️ Partie non trouvée pour la mise à jour de la partie terminée')
+          console.log(
+            '📋 Parties disponibles:',
+            this.games.map((g) => ({ id: g.id, status: g.status })),
+          )
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors de la mise à jour de la partie terminée:', error)
+      }
     },
   },
   mounted() {

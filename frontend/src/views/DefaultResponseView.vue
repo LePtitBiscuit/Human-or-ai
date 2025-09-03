@@ -86,9 +86,146 @@
   <!-- Afficher la page d'attente si connecté avec avancement "waiting_for_launch" -->
   <PageAttente v-else-if="isConnectedToGame && advancement === 'waiting_for_launch'" />
 
+  <!-- Afficher la page de fin de partie si la partie est terminée (mode solo uniquement) -->
+  <PageFinDePartie
+    v-else-if="
+      isConnectedToGame &&
+      advancement === 'game_ended' &&
+      finalScore &&
+      gameResult &&
+      gameMode !== 'multi'
+    "
+    :final-score="finalScore"
+    :final-round-number="finalRoundNumber"
+    :game-result="gameResult"
+    @replay-game="handleReplayGame"
+    @back-to-home="handleBackToHome"
+  />
+
+  <!-- Affichage de fin de partie pour le mode multijoueurs -->
+  <div
+    v-else-if="isConnectedToGame && advancement === 'game_ended' && gameMode === 'multi'"
+    class="min-h-screen bg-gradient-to-br from-blue-400 to-purple-800 flex items-center justify-center p-8"
+  >
+    <div class="w-full max-w-4xl">
+      <!-- Container principal -->
+      <div class="bg-white/20 backdrop-blur-sm rounded-3xl p-8 shadow-2xl border border-white/20">
+        <!-- Titre principal -->
+        <div class="text-center mb-8">
+          <h1 class="text-6xl font-bold text-white mb-4 tracking-wider">🏆 PARTIE TERMINÉE</h1>
+          <h2 class="text-3xl font-semibold text-white/90">Classement Final</h2>
+        </div>
+
+        <!-- Résultats détaillés -->
+        <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-6 mb-8">
+          <h3 class="text-2xl font-bold text-white text-center mb-6">🏆 Classement Final</h3>
+
+          <!-- Podium des 3 premiers joueurs -->
+          <div class="space-y-4">
+            <div
+              v-for="(player, index) in rankedPlayers"
+              :key="player.socketId || player.name"
+              class="flex items-center justify-between bg-white/10 rounded-xl p-4"
+              :class="{
+                'bg-gradient-to-r from-yellow-400/20 to-yellow-600/20 border-2 border-yellow-400':
+                  index === 0,
+                'bg-gradient-to-r from-gray-300/20 to-gray-500/20 border-2 border-gray-300':
+                  index === 1,
+                'bg-gradient-to-r from-orange-400/20 to-orange-600/20 border-2 border-orange-400':
+                  index === 2,
+              }"
+            >
+              <!-- Position et médaille -->
+              <div class="flex items-center gap-4">
+                <div
+                  class="flex items-center justify-center w-12 h-12 rounded-full"
+                  :class="{
+                    'bg-yellow-400 text-yellow-900': index === 0,
+                    'bg-gray-300 text-gray-700': index === 1,
+                    'bg-orange-400 text-orange-900': index === 2,
+                  }"
+                >
+                  <span v-if="index === 0" class="text-2xl">🥇</span>
+                  <span v-else-if="index === 1" class="text-2xl">🥈</span>
+                  <span v-else-if="index === 2" class="text-2xl">🥉</span>
+                  <span v-else class="text-xl font-bold">{{ index + 1 }}</span>
+                </div>
+
+                <!-- Nom du joueur -->
+                <div>
+                  <div class="text-xl font-bold text-white">{{ player.name }}</div>
+                  <div class="text-sm text-white/70">
+                    {{ player.correctAnswers }}/{{ player.totalAnswers }} bonnes réponses
+                  </div>
+                </div>
+              </div>
+
+              <!-- Score détaillé -->
+              <div class="text-right">
+                <div class="text-2xl font-bold text-white">
+                  {{ player.correctAnswers }}/{{ finalRoundNumber || totalRounds }}
+                </div>
+                <div class="text-sm text-white/70">
+                  {{
+                    Math.round((player.correctAnswers / (finalRoundNumber || totalRounds)) * 100)
+                  }}%
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Message de félicitations -->
+          <div class="text-center mt-6">
+            <div class="text-lg text-white/80">
+              <span v-if="rankedPlayers.length > 0">
+                🎉 Félicitations à
+                <span class="font-bold text-yellow-300">{{ rankedPlayers[0].name }}</span> pour sa
+                victoire !
+              </span>
+              <span v-else> 🎮 Partie terminée ! </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Message de félicitations -->
+        <div class="text-center mb-8">
+          <div class="text-xl text-white/90">
+            <p class="mb-4">🎮 Merci à tous les joueurs d'avoir participé à cette partie !</p>
+            <p class="text-lg text-white/80">
+              L'IA devient de plus en plus sophistiquée, mais l'intuition humaine reste précieuse !
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Debug: Afficher les conditions d'affichage
+  <div
+    v-if="isConnectedToGame && advancement === 'game_ended'"
+    class="fixed top-4 left-4 bg-black/80 text-white p-4 rounded-lg z-50"
+  >
+    <h3 class="font-bold mb-2">Debug - Conditions d'affichage PageFinDePartie:</h3>
+    <p>isConnectedToGame: {{ isConnectedToGame }}</p>
+    <p>advancement: {{ advancement }}</p>
+    <p>finalScore: {{ finalScore }}</p>
+    <p>gameResult: {{ gameResult }}</p>
+    <p>finalRoundNumber: {{ finalRoundNumber }}</p>
+    <p>gameEnded: {{ gameEnded }}</p>
+    <p>
+      Condition complète:
+      {{ isConnectedToGame && advancement === 'game_ended' && finalScore && gameResult }}
+    </p>
+  </div> -->
+
   <!-- Afficher la vue Presentation si connecté à une partie avec avancement -->
   <div
-    v-else-if="isConnectedToGame && advancement"
+    v-else-if="
+      isConnectedToGame &&
+      advancement &&
+      advancement !== 'waiting_for_launch' &&
+      advancement !== 'game_ended'
+    "
     class="h-full bg-gradient-to-br from-blue-400 to-purple-800 flex flex-col items-center px-8 pb-8 relative"
   >
     <!-- Bouton de déconnexion -->
@@ -112,51 +249,39 @@
     <!-- Titre principal -->
     <h1 class="text-white text-5xl font-bold m-16 mb-4 tracking-wider">Humain ou IA ?</h1>
 
-    <!-- Barre de progression des scores -->
-    <div class="flex items-center gap-2 mb-6">
+    <!-- Barre de progression des rounds -->
+    <div class="flex items-center gap-2 mb-6" v-if="totalRounds > 0">
       <div
-        v-for="(score, roundKey) in currentScore"
-        :key="roundKey"
+        v-for="roundNumber in totalRounds"
+        :key="roundNumber"
         class="flex items-center justify-center w-8 h-8"
       >
-        <!-- Check vert pour manche gagnée -->
-        <svg
-          v-if="score === true"
-          class="w-6 h-6 text-green-600"
-          fill="currentColor"
-          viewBox="0 0 20 20"
+        <!-- Rond bleu pour rounds en cours/terminés -->
+        <div
+          v-if="roundNumber <= currentRound"
+          class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center"
         >
-          <path
-            fill-rule="evenodd"
-            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-            clip-rule="evenodd"
-          ></path>
-        </svg>
-        <!-- Check rouge pour manche perdue -->
-        <svg
-          v-else-if="score === false"
-          class="w-6 h-6 text-red-600"
-          fill="currentColor"
-          viewBox="0 0 20 20"
-        >
-          <path
-            fill-rule="evenodd"
-            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-            clip-rule="evenodd"
-          ></path>
-        </svg>
-        <!-- Rond gris pour manche non jouée -->
-        <div v-else class="w-6 h-6 rounded-full bg-gray-300"></div>
+          <span class="text-white text-xs font-bold">{{ roundNumber }}</span>
+        </div>
+        <!-- Rond gris pour rounds futurs -->
+        <div v-else class="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center">
+          <span class="text-gray-600 text-xs font-bold">{{ roundNumber }}</span>
+        </div>
       </div>
     </div>
 
     <!-- Container principal -->
     <div
-      class="w-full h-[80vh] bg-white/50 backdrop-opacity-10 backdrop-blur-sm rounded-3xl p-8 pt-2 shadow-2xl overflow-hidden"
+      class="w-full h-[80vh] bg-white/30 backdrop-opacity-10 backdrop-blur-sm rounded-3xl p-8 pt-2 shadow-2xl overflow-hidden"
     >
       <!-- Question -->
-      <div class="text-center mb-8">
-        <h2 class="text-4xl font-bold text-gray-800 pt-8">
+      <div
+        v-if="
+          advancement === 'waiting_for_human_response' || advancement === 'waiting_for_ai_response'
+        "
+        class="text-center mb-8"
+      >
+        <h2 class="text-4xl font-bold text-gray-800 pt-12">
           {{ currentQuestion || 'Question en cours de génération...' }}
         </h2>
       </div>
@@ -166,53 +291,118 @@
           <div class="w-full h-full p-6 flex flex-col">
             <!-- Indicateurs de statut -->
 
+            <!-- Message d'attente pour la génération de question -->
+            <div
+              v-if="advancement === 'waiting_for_question_generation'"
+              class="w-full text-center pt-64"
+            >
+              <div class="flex items-center justify-center mb-4">
+                <svg
+                  class="w-12 h-12 text-white animate-spin"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  ></path>
+                </svg>
+              </div>
+              <h2 class="text-4xl font-bold text-white mb-4">
+                Génération de la question en cours...
+              </h2>
+              <p class="text-white/80 text-lg">Veuillez patienter...</p>
+            </div>
+
+            <!-- Message d'attente après la fin du round -->
+            <div v-else-if="isRoundEnded" class="w-full text-center pt-64">
+              <div class="flex items-center justify-center mb-4">
+                <svg
+                  class="w-12 h-12 text-white animate-spin"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  ></path>
+                </svg>
+              </div>
+              <h2 class="text-4xl font-bold text-white mb-4">
+                {{
+                  currentRound === totalRounds
+                    ? 'En attente des résultats de la partie'
+                    : 'En attente du lancement de la prochaine manche'
+                }}
+              </h2>
+              <p class="text-white/80 text-lg">Veuillez patienter...</p>
+            </div>
+
             <!-- Interface de sélection du joueur -->
-            <div v-if="isWaitingForSelection" class="w-full max-w-[40vw] mx-auto">
-              <!-- Question de sélection -->
-              <div class="text-center mb-8">
-                <h3 class="text-3xl font-bold text-gray-800 mb-8">Humain ou IA ?</h3>
+            <div
+              v-else-if="advancement === 'waiting_for_player_selection'"
+              class="w-full text-center pt-64"
+            >
+              <!-- Mode multijoueurs : affichage d'attente -->
+              <div v-if="gameMode === 'multi'">
+                <div class="flex items-center justify-center mb-4">
+                  <svg
+                    class="w-12 h-12 text-white animate-spin"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    ></path>
+                  </svg>
+                </div>
+                <h2 class="text-4xl font-bold text-white mb-4">En attente des choix des joueurs</h2>
+                <p class="text-white/80 text-lg">Veuillez patienter...</p>
+              </div>
+
+              <!-- Mode solo : interface de sélection -->
+              <div v-else>
+                <!-- Question de sélection -->
+                <h2 class="text-4xl font-bold text-white mb-12">Humain ou IA ?</h2>
 
                 <!-- Boutons de sélection -->
                 <div class="flex justify-center gap-8">
                   <!-- Bouton Humain -->
                   <button
                     @click="selectPlayerChoice('human')"
-                    class="bg-gradient-to-br from-blue-400 to-purple-800 hover:from-blue-500 hover:to-purple-900 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center gap-3"
+                    class="bg-white/90 hover:bg-white flex justify-center w-[180px] text-gray-800 px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center gap-3"
                   >
-                    <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                      <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path
-                          fill-rule="evenodd"
-                          d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
-                          clip-rule="evenodd"
-                        ></path>
-                      </svg>
-                    </div>
+                    <span class="text-2xl">👤</span>
                     <span>Humain</span>
                   </button>
 
                   <!-- Bouton IA -->
                   <button
                     @click="selectPlayerChoice('ai')"
-                    class="bg-gradient-to-br from-gray-500 to-gray-700 hover:from-gray-600 hover:to-gray-800 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center gap-3"
+                    class="bg-white/90 hover:bg-white flex justify-center w-[180px] text-gray-800 px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center gap-3"
                   >
-                    <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                      <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path
-                          fill-rule="evenodd"
-                          d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
-                          clip-rule="evenodd"
-                        ></path>
-                      </svg>
-                    </div>
+                    <span class="text-2xl">🤖</span>
                     <span>IA</span>
                   </button>
                 </div>
               </div>
             </div>
 
-            <!-- Champ de saisie de réponse (affiché quand pas en attente de sélection) -->
-            <div v-else class="w-full max-w-[40vw] mx-auto">
+            <!-- Champ de saisie de réponse (affiché quand pas en attente de sélection et pas de round terminé) -->
+            <div
+              v-else-if="advancement !== 'waiting_for_player_selection' && !isRoundEnded"
+              class="w-full max-w-[40vw] mx-auto"
+            >
               <textarea
                 v-model="currentResponse"
                 class="w-full bg-white/80 p-6 border border-gray-300 rounded-xl text-lg resize-none shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -274,6 +464,7 @@ import ConnectionForm from '@/components/ConnectionForm.vue'
 import deviceSocketService from '@/services/deviceSocketService'
 import PageDeGarde from '@/views/Presentation/PageDeGarde.vue'
 import PageAttente from '@/views/Presentation/PageAttente.vue'
+import PageFinDePartie from '@/views/Presentation/PageFinDePartie.vue'
 
 export default {
   name: 'PresentationView',
@@ -281,6 +472,7 @@ export default {
     ConnectionForm,
     PageDeGarde,
     PageAttente,
+    PageFinDePartie,
   },
   data() {
     return {
@@ -296,7 +488,51 @@ export default {
       currentScore: {},
       isSubmittingResponse: false,
       isWaitingForSelection: false,
+      // Nouveaux indicateurs de round
+      currentRound: 0,
+      totalRounds: 0,
+      isRoundEnded: false,
+      // Données pour la fin de partie
+      gameEnded: false,
+      finalScore: null,
+      finalRoundNumber: null,
+      gameResult: null, // 'won' ou 'lost'
+      // État du vote
+      hasVoted: false,
+      // Mode de jeu
+      gameMode: null, // 'solo' ou 'multi'
+      // Données des joueurs pour le mode multijoueurs
+      players: [],
     }
+  },
+
+  computed: {
+    // Classement des joueurs triés par score puis par ordre alphabétique
+    rankedPlayers() {
+      if (!this.players || this.players.length === 0) {
+        return []
+      }
+
+      return this.players
+        .map((player) => {
+          // Calculer le score du joueur
+          const score = player.score ? player.score.filter((s) => s === true).length : 0
+          return {
+            ...player,
+            correctAnswers: score,
+            totalAnswers: player.score ? player.score.length : 0,
+          }
+        })
+        .sort((a, b) => {
+          // Tri par score décroissant
+          if (b.correctAnswers !== a.correctAnswers) {
+            return b.correctAnswers - a.correctAnswers
+          }
+          // En cas d'égalité, tri par ordre alphabétique
+          return a.name.localeCompare(b.name)
+        })
+        .slice(0, 3) // Prendre seulement les 3 premiers
+    },
   },
 
   methods: {
@@ -374,9 +610,10 @@ export default {
         this.connectionStatus = 'connected'
         this.connectionMessage = 'Connecté avec succès!'
         this.isConnectedToGame = true
-        data.game.rounds.forEach((round, index) => {
-          this.currentScore[`round_${index + 1}`] = round
-        })
+        if (data.game) {
+          this.currentScore = data.game.score
+          this.totalRounds = data.game.rounds
+        }
 
         // La gestion des rooms est gérée côté serveur
       })
@@ -415,12 +652,13 @@ export default {
       // Écouter la suppression par l'administrateur
       deviceSocketService.on('device_removed_by_admin', (data) => {
         console.log("🚫 Appareil supprimé par l'administrateur:", data)
-        this.connectionStatus = 'disconnected'
-        this.connectionMessage = "Vous avez été supprimé de la partie par l'administrateur"
-        this.isConnectedToGame = false
 
-        // Recharger la page pour effectuer la déconnexion
-        window.location.reload()
+        // Réinitialiser toutes les données de la partie
+        this.resetGameData()
+
+        // Mettre à jour le statut de connexion
+        // this.connectionStatus = 'disconnected'
+        this.connectionMessage = "Vous avez été supprimé de la partie par l'administrateur"
       })
 
       // Écouter les mises à jour d'avancement de la partie
@@ -429,17 +667,41 @@ export default {
         if (data.game && typeof data.game.currentQuestion !== 'undefined') {
           this.currentQuestion = data.game.currentQuestion
         }
+        if (data.game && typeof data.game.gameMode !== 'undefined') {
+          this.gameMode = data.game.gameMode
+        }
+        if (data.game && typeof data.game.currentRound !== 'undefined') {
+          this.currentRound = data.game.currentRound
+        }
+        if (data.game && typeof data.game.rounds !== 'undefined') {
+          this.totalRounds = data.game.rounds
+        }
+        if (data.game && typeof data.game.players !== 'undefined') {
+          this.players = data.game.players
+        }
 
         if (data.advancement === 'waiting_for_player_selection') {
           this.isWaitingForSelection = true
         }
 
+        if (data.advancement === 'round_ended') {
+          this.isRoundEnded = true
+          this.currentScore = data.game.score
+
+          console.log('🏁 Round terminé - En attente de la prochaine manche')
+        }
+
+        if (data.advancement === 'game_ended') {
+          console.log('handled game ended')
+          this.handleGameEnded(data)
+        }
         console.log('📊 Avancement de la partie reçu:', data.advancement)
       })
 
       // Écouter la génération de question
       deviceSocketService.on('question_generated', (data) => {
         this.currentQuestion = data.question
+        this.isRoundEnded = false // Réinitialiser l'état de fin de round
         console.log('❓ Question générée reçue:', data.question)
       })
 
@@ -463,6 +725,22 @@ export default {
       deviceSocketService.on('waiting_for_player_selection', (data) => {
         console.log('🗳️ En attente de la sélection du joueur')
         this.isWaitingForSelection = true
+      })
+
+      // Écouter la fin de partie
+      deviceSocketService.on('game_ended', (data) => {
+        console.log('🎉 Partie terminée reçue:', data)
+        console.log('🔍 Données reçues détaillées:', {
+          game: data.game,
+          hasGame: !!data.game,
+          gameId: data.game ? data.game.id : null,
+          gameEnded: data.game ? data.game.gameEnded : null,
+          finalScore: data.game ? data.game.finalScore : null,
+          finalRoundNumber: data.game ? data.game.finalRoundNumber : null,
+          gameResult: data.game ? data.game.gameResult : null,
+          timestamp: data.timestamp,
+        })
+        this.handleGameEnded(data)
       })
     },
 
@@ -494,6 +772,100 @@ export default {
       this.currentGameId = null
       this.deviceInfo = null
       console.log('🔄 Statut de connexion réinitialisé')
+    },
+
+    // Réinitialiser toutes les données de la partie
+    resetGameData() {
+      console.log('🔄 Réinitialisation des données de la partie')
+
+      // Réinitialiser les données de la partie
+      this.currentQuestion = null
+      this.currentResponse = ''
+      this.advancement = null
+      this.currentScore = []
+      this.isSubmittingResponse = false
+      this.isWaitingForSelection = false
+      this.isRoundEnded = false
+
+      // Réinitialiser les données de connexion
+      this.deviceInfo = null
+      this.currentGameId = null
+
+      console.log('✅ Données de la partie réinitialisées')
+    },
+
+    // Afficher la page de garde
+    showPageDeGarde() {
+      console.log('🛡️ Affichage de la page de garde')
+
+      console.log('✅ Page de garde affichée')
+    },
+
+    // Gérer la fin de partie
+    handleGameEnded(data) {
+      console.log('🎉 Traitement de la fin de partie:', data)
+      console.log('🔍 État avant traitement:', {
+        advancement: this.advancement,
+        gameEnded: this.gameEnded,
+        finalScore: this.finalScore,
+        finalRoundNumber: this.finalRoundNumber,
+        gameResult: this.gameResult,
+      })
+
+      // Vérifier que l'objet game est présent
+      if (!data.game) {
+        console.error('❌ Aucun objet game reçu dans les données de fin de partie')
+        return
+      }
+
+      // Sauvegarder les données finales depuis l'objet game
+      this.finalScore = data.game.finalScore || []
+      this.finalRoundNumber = data.game.finalRoundNumber || 0
+      this.gameResult = data.game.gameResult || null
+      this.gameEnded = data.game.gameEnded || false
+
+      console.log("💾 Données sauvegardées depuis l'objet game:", {
+        finalScore: this.finalScore,
+        finalRoundNumber: this.finalRoundNumber,
+        gameResult: this.gameResult,
+        gameEnded: this.gameEnded,
+      })
+
+      // Marquer la partie comme terminée
+      this.advancement = 'game_ended'
+
+      console.log('🏁 État après traitement:', {
+        advancement: this.advancement,
+        gameEnded: this.gameEnded,
+        finalScore: this.finalScore,
+        finalRoundNumber: this.finalRoundNumber,
+        gameResult: this.gameResult,
+      })
+
+      console.log(
+        `🏆 Partie terminée: ${this.finalScore.filter((score) => score === true).length}/${this.finalRoundNumber} - ${this.gameResult === 'won' ? 'GAGNÉE' : 'PERDUE'}`,
+      )
+    },
+
+    // Gérer le rejeu de la partie
+    handleReplayGame() {
+      console.log('🔄 Demande de rejeu de la partie')
+      // Réinitialiser les données de fin de partie
+      this.gameEnded = false
+      this.finalScore = null
+      this.finalRoundNumber = null
+      this.gameResult = null
+      this.advancement = null
+
+      // Retourner à la page de garde
+      this.showPageDeGarde()
+    },
+
+    // Gérer le retour à l'accueil
+    handleBackToHome() {
+      console.log("🏠 Retour à l'accueil")
+      // Déconnecter de la partie
+      this.handleDisconnect()
     },
 
     async submitResponse() {
