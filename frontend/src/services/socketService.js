@@ -3,7 +3,7 @@ import io from 'socket.io-client'
 class SocketService {
   constructor() {
     this.socket = null
-    this.baseURL = 'https://human-or-ai.vizyondijital.fr/api'
+    this.baseURL = 'https://human-or-ai.vizyondijital.fr'
   }
 
   /**
@@ -13,8 +13,10 @@ class SocketService {
     try {
       // Établir la connexion Socket.IO
       this.socket = io(this.baseURL, {
+        path: '/socket.io/',
         transports: ['websocket', 'polling'],
         autoConnect: true,
+        auth: { token }, // si tu veux envoyer ton JWT
       })
 
       // Gérer la connexion
